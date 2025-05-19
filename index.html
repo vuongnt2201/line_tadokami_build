@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Unity Web Player | AutoRPGAdventure</title>
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <link rel="stylesheet" href="TemplateData/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@telegram-apps/sdk@1.1.3/dist/index.iife.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-app-compat.js"></script>
+    <!-- <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore-compat.js"></script> -->
+    <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-analytics-compat.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <style>
+        /* Reset all margins and paddings */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* Add version display style */
+        #version-display {
+            position: fixed;
+            right: 10px;
+            bottom: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            font-family: Arial, sans-serif;
+            z-index: 2147483647;
+            pointer-events: none;
+            mix-blend-mode: difference;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        }
+        
+        /* Hide the footer with title and fullscreen button */
+        #unity-footer {
+            display: none !important;
+        }
+        
+        /* Make the container take full screen */
+        #unity-container {
+            width: 100% !important;
+            height: 100% !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+        
+        /* Make the canvas take full screen */
+        #unity-canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+        }
+        
+        /* Remove any margins or padding */
+        body, html {
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            width: 100% !important;
+            height: 100% !important;
+            position: fixed !important;
+            background-color: black !important;
+        }
+        
+        /* Ensure loading bar is centered */
+        #unity-loading-bar {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        
+        /* Version canvas style */
+        #version-canvas {
+            position: fixed;
+            right: 10px;
+            bottom: 10px;
+            z-index: 2147483647;
+            pointer-events: none;
+        }
+    </style>
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover">
+</head>
+<body>
+<div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+            <div id="unity-progress-bar-full"></div>
+        </div>
+    </div>
+    <div id="unity-warning"></div>
+
+
+</div>
+<canvas id="version-canvas"></canvas>
+
+<script>
+    window.Telegram.WebApp.ready();
+    console.log("Script started");
+    
+    var canvas = document.querySelector("#unity-canvas");
+    var unityInstance = null;
+    var isUnityLoaded = false;
+
+    // Initialize Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyBlmSTnWXmJ7AM62x6GrXS6JOQTyC8agDM",
+        authDomain: "tadogami-7f67a.firebaseapp.com",
+        projectId: "tadogami-7f67a",
+        storageBucket: "tadogami-7f67a.firebasestorage.app",
+        messagingSenderId: "498552618046",
+        appId: "1:498552618046:web:a6289460f773df389d256f",
+        measurementId: "G-Y3KSRPFPBM"
+    };
+    
+    // Initialize Firebase app and services
+    const firebaseApp = firebase.initializeApp(firebaseConfig);
+    // const db = firebaseApp.firestore();
+    const analytics = firebase.analytics(firebaseApp);
+
+    // Add other Firebase services as needed
+    // const auth = firebaseApp.auth();
+    // const storage = firebaseApp.storage();
+    
+    function unityShowBanner(msg, type) {
+        var warningBanner = document.querySelector("#unity-warning");
+        function updateBannerVisibility() {
+            warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        else {
+            if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+            setTimeout(function () {
+                warningBanner.removeChild(div);
+                updateBannerVisibility();
+            }, 5000);
+        }
+        updateBannerVisibility();
+    }
+
+    // Thêm code fetch version để ngăn chặn caching
+    fetch('version.txt?' + new Date().getTime())
+        .then(response => response.text())
+        .then(version => {
+            console.log("Game version:", version);
+            // Display version using canvas
+            displayVersion(version);
+            loadGame(version);
+        })
+        .catch(error => {
+            console.error("Error fetching version:", error);
+            displayVersion("unknown");
+            loadGame("unknown");
+        });
+
+    function displayVersion(version) {
+        const canvas = document.getElementById('version-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = 200;  // Adjust based on text length
+        canvas.height = 30;
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Set text style
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        
+        // Add text shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        
+        // Calculate text width to position it from the right
+        const text = 'v' + version;
+        const textWidth = ctx.measureText(text).width;
+        
+        // Draw text aligned to the right
+        ctx.fillText(text, canvas.width - textWidth - 10, 20);
+        
+        // Ensure canvas is visible
+        canvas.style.display = 'block';
+    }
+
+    function loadGame(version) {
+        var buildUrl = "Build";
+        var loaderUrl = buildUrl + "/Tadogami_Build.loader.js";
+        var config = {
+            dataUrl: buildUrl + "/Tadogami_Build.data?v=" + version,
+            frameworkUrl: buildUrl + "/Tadogami_Build.framework.js?v=" + version,
+            codeUrl: buildUrl + "/Tadogami_Build.wasm?v=" + version,
+            streamingAssetsUrl: "StreamingAssets",
+            companyName: "DefaultCompany",
+            productName: "AutoRPGAdventure",
+            productVersion: version,
+            showBanner: unityShowBanner,
+        };
+
+        // Ensure version display is visible before loading Unity
+        var versionDisplay = document.getElementById('version-display');
+        if (versionDisplay) {
+            versionDisplay.style.display = 'block';
+            versionDisplay.style.visibility = 'visible';
+        }
+
+        loadUnity(loaderUrl, canvas, config);
+    }
+
+    // Set canvas size to match window dimensions
+    function resizeCanvas() {
+        // Get device pixel ratio
+        const pixelRatio = window.devicePixelRatio || 1;
+        
+        // Get viewport dimensions
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Set canvas dimensions
+        canvas.width = viewportWidth * pixelRatio;
+        canvas.height = viewportHeight * pixelRatio;
+        canvas.style.width = viewportWidth + 'px';
+        canvas.style.height = viewportHeight + 'px';
+        
+        console.log("Canvas resized to:", canvas.width, "x", canvas.height, 
+                    "Pixel ratio:", pixelRatio,
+                    "Viewport:", viewportWidth, "x", viewportHeight);
+        
+        // Force a reflow of the entire document
+        document.body.offsetHeight;
+        
+        // Notify Unity about resize if instance is ready
+        if (unityInstance && isUnityLoaded) {
+            try {
+
+
+
+                if (unityInstance.Module && 
+                    unityInstance.Module.SendMessage) {
+                        
+                    unityInstance.SendMessage("WebGLBridge", "OnWindowResize", 
+                        JSON.stringify({
+                            width: canvas.width, 
+                            height: canvas.height,
+                            pixelRatio: pixelRatio
+                        }));
+                    console.log("Resize message sent to Unity.");
+                } else {
+                    console.log("Unity SendMessage function not available yet.");
+                }
+            } catch (e) {
+
+                console.error("Error sending resize event to Unity:", e);
+            }
+        }
+        
+        // Force version display to be visible
+        const versionDisplay = document.getElementById('version-display');
+        if (versionDisplay) {
+            versionDisplay.style.display = 'block';
+            versionDisplay.style.visibility = 'visible';
+            // Force a reflow
+            versionDisplay.offsetHeight;
+        }
+    }
+    
+    // Debounce function to limit resize calls
+    function debounce(func, wait) {
+        let timeout;
+        return function() {
+            const context = this;
+            const args = arguments;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    }
+    
+    // Create debounced version of resize with different delays
+    const debouncedResize = debounce(resizeCanvas, 100);
+    const delayedResize = debounce(resizeCanvas, 500); // Longer delay for post-loading scenarios
+    
+    // Single resize scheduler that cancels previous scheduled resizes
+    let resizeTimeout = null;
+    function scheduleResize(delay = 200) {
+        // Clear any existing scheduled resize
+        if (resizeTimeout) {
+            clearTimeout(resizeTimeout);
+        }
+        // Schedule a single resize
+        resizeTimeout = setTimeout(resizeCanvas, delay);
+    }
+    
+    // Initial resize and add event listener for window resize
+    resizeCanvas(); // Immediate first resize
+    window.addEventListener('resize', debouncedResize);
+
+    // Force resize on visibility change (helps with Telegram app switching)
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            console.log("Tab became visible - forcing resize");
+            scheduleResize(300); // Single resize with appropriate delay
+        }
+    });
+
+    function loadUnity(loaderUrl, canvas, config) {
+        document.querySelector("#unity-loading-bar").style.display = "block";
+
+        var script = document.createElement("script");
+        script.src = loaderUrl;
+        script.onload = () => {
+            console.log("Unity loader script loaded");
+            
+            createUnityInstance(canvas, config, (progress) => {
+                console.log("Loading progress:", progress);
+                document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
+            }).then((instance) => {
+                console.log("Unity instance created");
+                unityInstance = instance;
+                
+                document.querySelector("#unity-loading-bar").style.display = "none";
+                
+                // Force a reflow of the entire document
+                document.body.offsetHeight;
+                
+                // Remove and re-add Unity canvas to force proper layering
+                const unityContainer = document.getElementById('unity-container');
+                const unityCanvas = document.getElementById('unity-canvas');
+                if (unityContainer && unityCanvas) {
+                    unityContainer.removeChild(unityCanvas);
+                    setTimeout(() => {
+                        unityContainer.appendChild(unityCanvas);
+                        // Force another reflow
+                        unityCanvas.offsetHeight;
+                    }, 0);
+                }
+                
+                // Set fullscreen with device detection
+                if (instance.SetFullscreen) {
+                    console.log("Checking device for fullscreen compatibility");
+                    // Check if device is iOS (iPad or iPhone) or Telegram Desktop
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                    const isTelegramDesktop = /TelegramDesktop/i.test(navigator.userAgent);
+                    
+                    if (isIOS || isTelegramDesktop) {
+                        console.log("iOS or Telegram Desktop detected, using CSS fullscreen");
+                        // Force canvas to take full viewport - single resize with appropriate delay
+                        delayedResize();
+                    } else {
+                        console.log("Setting fullscreen mode");
+                        try {
+                            instance.SetFullscreen(1);
+                        } catch (error) {
+                            console.error("Error setting fullscreen:", error);
+                            // Fallback to CSS fullscreen
+                            delayedResize();
+                        }
+                    }
+                }
+
+                // Mark Unity as loaded
+                isUnityLoaded = true;
+                
+                // Wait for scene to load and send token
+                setTimeout(() => {
+                    console.log("Attempting to send token after delay");
+                    try {
+                        // Test connection first
+                        instance.SendMessage("WebGLBridge", "TestConnection");
+                        console.log("Test connection successful");
+                        
+                        // Get and send token
+                        const token = getLoginToken();
+                        if (token) {
+                            instance.SendMessage("WebGLBridge", "OnLoginTokenReceived", token);
+                            console.log("Token sent to Unity:", token);
+                        } else {
+                            instance.SendMessage("WebGLBridge", "OnLoginTokenReceived", "");
+                            console.log("No token found in URL, sending default");
+                        }
+                    } catch (error) {
+                        console.error("Error sending message to Unity:", error);
+                    }
+                }, 2000);
+
+            }).catch((message) => {
+                console.error("Unity creation error:", message);
+            });
+        };
+
+        document.body.appendChild(script);
+    }
+
+    function getLoginToken() {
+        console.log("Current URL:", window.location.href);
+        const queryString = window.location.search.substring(1);
+        console.log("Full query string:", queryString);
+        
+        if (queryString) {
+            return queryString;
+        }
+        return null;
+    }
+
+    // Improved Telegram viewport handler
+    function handleTelegramViewport() {
+        console.log("Telegram viewport handler - forcing canvas resize");
+        
+        // Immediate resize
+        resizeCanvas();
+        
+        // For mobile devices, we need special handling
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            console.log("Mobile device detected - applying special handling");
+            
+            // Ensure Telegram WebApp is expanded
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.expand();
+                console.log("Telegram WebApp expanded");
+            }
+            
+            // Single delayed resize for mobile
+            delayedResize();
+        } else {
+            // Desktop handling - no additional resize needed as we already called resizeCanvas()
+        }
+        
+        // Log user agent for debugging
+        console.log("User Agent:", navigator.userAgent);
+        
+        // Check if we're in Telegram Desktop
+        if (/TelegramDesktop/i.test(navigator.userAgent)) {
+            console.log("Telegram Desktop detected - applying special handling");
+            
+            // Add MutationObserver to detect DOM changes that might affect layout
+            const observer = new MutationObserver(function(mutations) {
+                console.log("DOM mutation detected, forcing resize");
+                debouncedResize(); // Use debounced resize to prevent multiple calls
+            });
+            
+            // Start observing the document with the configured parameters
+            observer.observe(document.body, { 
+                childList: true, 
+                subtree: true,
+                attributes: true
+            });
+        }
+    }
+
+    // Add orientation change handler for mobile devices
+    window.addEventListener('orientationchange', function() {
+        console.log("Orientation changed, forcing resize");
+        scheduleResize(300); // Single resize with appropriate delay
+    });
+    
+    // Handle Telegram specific events
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.onEvent('viewportChanged', function() {
+            console.log("Telegram viewport changed event");
+            debouncedResize(); // Use debounced resize to prevent multiple calls
+        });
+    }
+
+    // Thêm các hàm JavaScript mà Unity có thể gọi
+    function exampleFunction(parameter) {
+        console.log("Function called from Unity with parameter: " + parameter);
+        // Thực hiện các hành động cần thiết ở đây
+        alert("Message from Unity: " + parameter);
+    }
+    
+    // Thêm các hàm khác mà bạn muốn gọi từ Unity
+    function refreshPage() {
+        console.log("Refreshing page from Unity request");
+        window.location.reload();
+    }
+    
+    function navigateToUrl(url) {
+        console.log("Navigating to: " + url);
+        window.location.href = url;
+    }
+    
+    function sendAnalyticsEvent(eventData) {
+        console.log("Sending analytics event: " + eventData);
+        try {
+            const data = JSON.parse(eventData);
+            if (analytics) {
+                analytics.logEvent(data.eventName, data.parameters);
+                console.log("Analytics event sent successfully");
+            }
+        } catch (error) {
+            console.error("Error sending analytics event: " + error);
+        }
+    }
+
+    // Hàm đặc biệt cho Unity gọi
+    function forceIOSResize(parameter) {
+        console.log("Force iOS resize called with parameter:", parameter);
+        
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        
+        // Always use a delayed resize when triggered by Unity
+        // This prevents issues if Unity calls this function before everything is ready
+        delayedResize(); 
+        
+        if (isIOS) {
+            // Ensure Telegram WebApp is expanded on iOS
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.expand();
+            }
+        }
+        // Removed the direct resizeCanvas() call for non-iOS here
+        // as delayedResize() handles it.
+    }
+</script>
+</body>
+</html>
