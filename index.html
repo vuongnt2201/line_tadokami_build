@@ -6,11 +6,9 @@
     <title>Unity Web Player | AutoRPGAdventure</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@telegram-apps/sdk@1.1.3/dist/index.iife.js"></script>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-app-compat.js"></script>
-    <!-- <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore-compat.js"></script> -->
     <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-analytics-compat.js"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <style>
         /* Reset all margins and paddings */
@@ -102,13 +100,25 @@
         </div>
     </div>
     <div id="unity-warning"></div>
-
-
 </div>
 <canvas id="version-canvas"></canvas>
 
 <script>
-    window.Telegram.WebApp.ready();
+    // Initialize LINE
+    liff.init({ 
+        liffId: '2007409525-zEYm88eE', // Replace with your LIFF ID
+        withLoginOnExternalBrowser: true
+    })
+    .then(() => {
+        console.log('LIFF initialized');
+        if (!liff.isLoggedIn()) {
+            liff.login();
+        }
+    })
+    .catch((err) => {
+        console.error('LIFF initialization failed', err);
+    });
+
     console.log("Script started");
     
     var canvas = document.querySelector("#unity-canvas");
@@ -128,12 +138,7 @@
     
     // Initialize Firebase app and services
     const firebaseApp = firebase.initializeApp(firebaseConfig);
-    // const db = firebaseApp.firestore();
     const analytics = firebase.analytics(firebaseApp);
-
-    // Add other Firebase services as needed
-    // const auth = firebaseApp.auth();
-    // const storage = firebaseApp.storage();
     
     function unityShowBanner(msg, type) {
         var warningBanner = document.querySelector("#unity-warning");
@@ -154,12 +159,11 @@
         updateBannerVisibility();
     }
 
-    // Thêm code fetch version để ngăn chặn caching
+    // Fetch version to prevent caching
     fetch('version.txt?' + new Date().getTime())
         .then(response => response.text())
         .then(version => {
             console.log("Game version:", version);
-            // Display version using canvas
             displayVersion(version);
             loadGame(version);
         })
@@ -173,31 +177,24 @@
         const canvas = document.getElementById('version-canvas');
         const ctx = canvas.getContext('2d');
         
-        // Set canvas size
-        canvas.width = 200;  // Adjust based on text length
+        canvas.width = 200;
         canvas.height = 30;
         
-        // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Set text style
         ctx.font = '12px Arial';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         
-        // Add text shadow
         ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         ctx.shadowBlur = 2;
         ctx.shadowOffsetX = 1;
         ctx.shadowOffsetY = 1;
         
-        // Calculate text width to position it from the right
         const text = 'v' + version;
         const textWidth = ctx.measureText(text).width;
         
-        // Draw text aligned to the right
         ctx.fillText(text, canvas.width - textWidth - 10, 20);
         
-        // Ensure canvas is visible
         canvas.style.display = 'block';
     }
 
@@ -215,7 +212,6 @@
             showBanner: unityShowBanner,
         };
 
-        // Ensure version display is visible before loading Unity
         var versionDisplay = document.getElementById('version-display');
         if (versionDisplay) {
             versionDisplay.style.display = 'block';
@@ -225,16 +221,11 @@
         loadUnity(loaderUrl, canvas, config);
     }
 
-    // Set canvas size to match window dimensions
     function resizeCanvas() {
-        // Get device pixel ratio
         const pixelRatio = window.devicePixelRatio || 1;
-        
-        // Get viewport dimensions
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
         
-        // Set canvas dimensions
         canvas.width = viewportWidth * pixelRatio;
         canvas.height = viewportHeight * pixelRatio;
         canvas.style.width = viewportWidth + 'px';
@@ -244,18 +235,11 @@
                     "Pixel ratio:", pixelRatio,
                     "Viewport:", viewportWidth, "x", viewportHeight);
         
-        // Force a reflow of the entire document
         document.body.offsetHeight;
         
-        // Notify Unity about resize if instance is ready
         if (unityInstance && isUnityLoaded) {
             try {
-
-
-
-                if (unityInstance.Module && 
-                    unityInstance.Module.SendMessage) {
-                        
+                if (unityInstance.Module && unityInstance.Module.SendMessage) {
                     unityInstance.SendMessage("WebGLBridge", "OnWindowResize", 
                         JSON.stringify({
                             width: canvas.width, 
@@ -267,22 +251,18 @@
                     console.log("Unity SendMessage function not available yet.");
                 }
             } catch (e) {
-
                 console.error("Error sending resize event to Unity:", e);
             }
         }
         
-        // Force version display to be visible
         const versionDisplay = document.getElementById('version-display');
         if (versionDisplay) {
             versionDisplay.style.display = 'block';
             versionDisplay.style.visibility = 'visible';
-            // Force a reflow
             versionDisplay.offsetHeight;
         }
     }
     
-    // Debounce function to limit resize calls
     function debounce(func, wait) {
         let timeout;
         return function() {
@@ -293,30 +273,24 @@
         };
     }
     
-    // Create debounced version of resize with different delays
     const debouncedResize = debounce(resizeCanvas, 100);
-    const delayedResize = debounce(resizeCanvas, 500); // Longer delay for post-loading scenarios
+    const delayedResize = debounce(resizeCanvas, 500);
     
-    // Single resize scheduler that cancels previous scheduled resizes
     let resizeTimeout = null;
     function scheduleResize(delay = 200) {
-        // Clear any existing scheduled resize
         if (resizeTimeout) {
             clearTimeout(resizeTimeout);
         }
-        // Schedule a single resize
         resizeTimeout = setTimeout(resizeCanvas, delay);
     }
     
-    // Initial resize and add event listener for window resize
-    resizeCanvas(); // Immediate first resize
+    resizeCanvas();
     window.addEventListener('resize', debouncedResize);
 
-    // Force resize on visibility change (helps with Telegram app switching)
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden) {
             console.log("Tab became visible - forcing resize");
-            scheduleResize(300); // Single resize with appropriate delay
+            scheduleResize(300);
         }
     });
 
@@ -337,32 +311,25 @@
                 
                 document.querySelector("#unity-loading-bar").style.display = "none";
                 
-                // Force a reflow of the entire document
                 document.body.offsetHeight;
                 
-                // Remove and re-add Unity canvas to force proper layering
                 const unityContainer = document.getElementById('unity-container');
                 const unityCanvas = document.getElementById('unity-canvas');
                 if (unityContainer && unityCanvas) {
                     unityContainer.removeChild(unityCanvas);
                     setTimeout(() => {
                         unityContainer.appendChild(unityCanvas);
-                        // Force another reflow
                         unityCanvas.offsetHeight;
                     }, 0);
                 }
                 
-                // Set fullscreen with device detection
                 if (instance.SetFullscreen) {
                     console.log("Checking device for fullscreen compatibility");
-                    // Check if device is iOS (iPad or iPhone) or Telegram Desktop
                     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
                                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                    const isTelegramDesktop = /TelegramDesktop/i.test(navigator.userAgent);
                     
-                    if (isIOS || isTelegramDesktop) {
-                        console.log("iOS or Telegram Desktop detected, using CSS fullscreen");
-                        // Force canvas to take full viewport - single resize with appropriate delay
+                    if (isIOS) {
+                        console.log("iOS detected, using CSS fullscreen");
                         delayedResize();
                     } else {
                         console.log("Setting fullscreen mode");
@@ -370,31 +337,26 @@
                             instance.SetFullscreen(1);
                         } catch (error) {
                             console.error("Error setting fullscreen:", error);
-                            // Fallback to CSS fullscreen
                             delayedResize();
                         }
                     }
                 }
 
-                // Mark Unity as loaded
                 isUnityLoaded = true;
                 
-                // Wait for scene to load and send token
                 setTimeout(() => {
                     console.log("Attempting to send token after delay");
                     try {
-                        // Test connection first
                         instance.SendMessage("WebGLBridge", "TestConnection");
                         console.log("Test connection successful");
                         
-                        // Get and send token
                         const token = getLoginToken();
                         if (token) {
                             instance.SendMessage("WebGLBridge", "OnLoginTokenReceived", token);
                             console.log("Token sent to Unity:", token);
                         } else {
                             instance.SendMessage("WebGLBridge", "OnLoginTokenReceived", "");
-                            console.log("No token found in URL, sending default");
+                            console.log("No token found, sending default");
                         }
                     } catch (error) {
                         console.error("Error sending message to Unity:", error);
@@ -411,83 +373,22 @@
 
     function getLoginToken() {
         console.log("Current URL:", window.location.href);
-        const queryString = window.location.search.substring(1);
-        console.log("Full query string:", queryString);
-        
-        if (queryString) {
-            return queryString;
+        if (liff.isLoggedIn()) {
+            return liff.getAccessToken();
         }
         return null;
     }
 
-    // Improved Telegram viewport handler
-    function handleTelegramViewport() {
-        console.log("Telegram viewport handler - forcing canvas resize");
-        
-        // Immediate resize
-        resizeCanvas();
-        
-        // For mobile devices, we need special handling
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        if (isMobile) {
-            console.log("Mobile device detected - applying special handling");
-            
-            // Ensure Telegram WebApp is expanded
-            if (window.Telegram && window.Telegram.WebApp) {
-                window.Telegram.WebApp.expand();
-                console.log("Telegram WebApp expanded");
-            }
-            
-            // Single delayed resize for mobile
-            delayedResize();
-        } else {
-            // Desktop handling - no additional resize needed as we already called resizeCanvas()
-        }
-        
-        // Log user agent for debugging
-        console.log("User Agent:", navigator.userAgent);
-        
-        // Check if we're in Telegram Desktop
-        if (/TelegramDesktop/i.test(navigator.userAgent)) {
-            console.log("Telegram Desktop detected - applying special handling");
-            
-            // Add MutationObserver to detect DOM changes that might affect layout
-            const observer = new MutationObserver(function(mutations) {
-                console.log("DOM mutation detected, forcing resize");
-                debouncedResize(); // Use debounced resize to prevent multiple calls
-            });
-            
-            // Start observing the document with the configured parameters
-            observer.observe(document.body, { 
-                childList: true, 
-                subtree: true,
-                attributes: true
-            });
-        }
-    }
-
-    // Add orientation change handler for mobile devices
     window.addEventListener('orientationchange', function() {
         console.log("Orientation changed, forcing resize");
-        scheduleResize(300); // Single resize with appropriate delay
+        scheduleResize(300);
     });
-    
-    // Handle Telegram specific events
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.onEvent('viewportChanged', function() {
-            console.log("Telegram viewport changed event");
-            debouncedResize(); // Use debounced resize to prevent multiple calls
-        });
-    }
 
-    // Thêm các hàm JavaScript mà Unity có thể gọi
     function exampleFunction(parameter) {
         console.log("Function called from Unity with parameter: " + parameter);
-        // Thực hiện các hành động cần thiết ở đây
         alert("Message from Unity: " + parameter);
     }
     
-    // Thêm các hàm khác mà bạn muốn gọi từ Unity
     function refreshPage() {
         console.log("Refreshing page from Unity request");
         window.location.reload();
@@ -511,26 +412,10 @@
         }
     }
 
-    // Hàm đặc biệt cho Unity gọi
     function forceIOSResize(parameter) {
         console.log("Force iOS resize called with parameter:", parameter);
-        
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        
-        // Always use a delayed resize when triggered by Unity
-        // This prevents issues if Unity calls this function before everything is ready
-        delayedResize(); 
-        
-        if (isIOS) {
-            // Ensure Telegram WebApp is expanded on iOS
-            if (window.Telegram && window.Telegram.WebApp) {
-                window.Telegram.WebApp.expand();
-            }
-        }
-        // Removed the direct resizeCanvas() call for non-iOS here
-        // as delayedResize() handles it.
+        delayedResize();
     }
 </script>
 </body>
-</html>
+</html> 
