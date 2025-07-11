@@ -111,14 +111,6 @@
 <script>
     console.log("=== Script started ===");
     
-    // Check if LIFF SDK is loaded
-    console.log("Checking LIFF SDK availability...");
-    if (typeof liff !== 'undefined') {
-        console.log("LIFF SDK is available");
-    } else {
-        console.error("LIFF SDK is NOT available");
-    }
-    
     var canvas = document.querySelector("#unity-canvas");
     var unityInstance = null;
     var isUnityLoaded = false;
@@ -256,9 +248,6 @@
         // Notify Unity about resize if instance is ready
         if (unityInstance && isUnityLoaded) {
             try {
-
-
-
                 if (unityInstance.Module && 
                     unityInstance.Module.SendMessage) {
                         
@@ -273,7 +262,6 @@
                     console.log("Unity SendMessage function not available yet.");
                 }
             } catch (e) {
-
                 console.error("Error sending resize event to Unity:", e);
             }
         }
@@ -428,23 +416,6 @@
                     }
                 }, 2000);
 
-                // Wait for scene to load and initialize LINE LIFF
-                setTimeout(() => {
-                    console.log("=== Attempting to initialize LINE LIFF after delay ===");
-                    try {
-                        // Test connection first
-                        instance.SendMessage("__[ST]_WebGLBridge", "TestConnection");
-                        console.log("Test connection successful");
-                        
-                        // Initialize LINE LIFF and send token
-                        console.log("Calling initializeLineLiff()...");
-                        initializeLineLiff();
-                        
-                    } catch (error) {
-                        console.error("Error initializing LINE LIFF:", error);
-                    }
-                }, 2000);
-
             }).catch((message) => {
                 console.error("Unity creation error:", message);
             });
@@ -490,69 +461,6 @@
         // For LINE, we'll return the full query string for now
         // The actual token will be obtained through LIFF SDK
         return queryString;
-    }
-
-    // Add LINE LIFF initialization function
-    function initializeLineLiff() {
-        console.log("=== initializeLineLiff() called ===");
-        
-        if (typeof liff === 'undefined') {
-            console.error('LIFF SDK not loaded');
-            return;
-        }
-        
-        console.log("Initializing LINE LIFF...");
-        
-        liff.init({ 
-            liffId: '2007488220-br6BV2x6',
-            withLoginOnExternalBrowser: true
-        }).then(() => {
-            console.log("LIFF initialized successfully");
-            
-            // Check if user is logged in
-            if (!liff.isLoggedIn()) {
-                console.log("User not logged in, redirecting to login");
-                liff.login();
-                return;
-            }
-            
-            console.log("User is logged in, getting profile and token...");
-            
-            // Get user profile and token
-            liff.getProfile().then(profile => {
-                console.log("LINE User Profile:", profile);
-                
-                // Send profile to Unity
-                if (unityInstance && unityInstance.SendMessage) {
-                    const profileStr = JSON.stringify(profile);
-                    unityInstance.SendMessage("__[ST]_WebGLBridge", "OnLineUserProfileReceived", profileStr);
-                    console.log("Profile sent to Unity");
-                } else {
-                    console.log("Unity instance not ready for profile");
-                }
-            }).catch(error => {
-                console.error('Error getting LINE profile:', error);
-            });
-            
-            // FIXED: liff.getIDToken() returns string directly, not Promise
-            try {
-                const token = liff.getIDToken();
-                console.log("LINE ID Token:", token);
-                
-                // Send token to Unity
-                if (unityInstance && unityInstance.SendMessage) {
-                    unityInstance.SendMessage("__[ST]_WebGLBridge", "OnLineLoginTokenReceived", token);
-                    console.log("Token sent to Unity");
-                } else {
-                    console.log("Unity instance not ready for token");
-                }
-            } catch (error) {
-                console.error('Error getting LINE ID token:', error);
-            }
-            
-        }).catch(error => {
-            console.error('LIFF initialization failed:', error);
-        });
     }
 
     // Improved Telegram viewport handler
@@ -745,48 +653,6 @@
         }
         // Removed the direct resizeCanvas() call for non-iOS here
         // as delayedResize() handles it.
-    }
-
-    // Add LINE-specific functions that Unity can call
-    function initializeLineWhenUnityReady() {
-        if (unityInstance) {
-            initializeLineLiff();
-        } else {
-            setTimeout(initializeLineWhenUnityReady, 1000);
-        }
-    }
-    
-    function triggerLineLogin() {
-        if (typeof liff !== 'undefined') {
-            liff.login();
-        }
-    }
-    
-    function triggerLineLogout() {
-        if (typeof liff !== 'undefined') {
-            liff.logout();
-        }
-    }
-    
-    function getLineUserProfile() {
-        if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
-            return liff.getProfile().then(profile => {
-                return JSON.stringify(profile);
-            });
-        }
-        return Promise.resolve("");
-    }
-    
-    function getLineIDToken() {
-        if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
-            // FIXED: liff.getIDToken() returns string directly, not Promise
-            const token = liff.getIDToken();
-            var bufferSize = lengthBytesUTF8(token) + 1;
-            var buffer = _malloc(bufferSize);
-            stringToUTF8(token, buffer, bufferSize);
-            return buffer;
-        }
-        return "";
     }
 </script>
 </body>
