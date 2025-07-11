@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="TemplateData/style.css">
     
     <!-- LINE LIFF SDK -->
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
     
     <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-analytics-compat.js"></script>
@@ -534,7 +534,9 @@
                 console.error('Error getting LINE profile:', error);
             });
             
-            liff.getIDToken().then(token => {
+            // FIXED: liff.getIDToken() returns string directly, not Promise
+            try {
+                const token = liff.getIDToken();
                 console.log("LINE ID Token:", token);
                 
                 // Send token to Unity
@@ -544,9 +546,9 @@
                 } else {
                     console.log("Unity instance not ready for token");
                 }
-            }).catch(error => {
+            } catch (error) {
                 console.error('Error getting LINE ID token:', error);
-            });
+            }
             
         }).catch(error => {
             console.error('LIFF initialization failed:', error);
@@ -777,9 +779,14 @@
     
     function getLineIDToken() {
         if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
-            return liff.getIDToken();
+            // FIXED: liff.getIDToken() returns string directly, not Promise
+            const token = liff.getIDToken();
+            var bufferSize = lengthBytesUTF8(token) + 1;
+            var buffer = _malloc(bufferSize);
+            stringToUTF8(token, buffer, bufferSize);
+            return buffer;
         }
-        return Promise.resolve("");
+        return "";
     }
 </script>
 </body>
