@@ -109,7 +109,15 @@
 <canvas id="version-canvas"></canvas>
 
 <script>
-    console.log("Script started");
+    console.log("=== Script started ===");
+    
+    // Check if LIFF SDK is loaded
+    console.log("Checking LIFF SDK availability...");
+    if (typeof liff !== 'undefined') {
+        console.log("LIFF SDK is available");
+    } else {
+        console.error("LIFF SDK is NOT available");
+    }
     
     var canvas = document.querySelector("#unity-canvas");
     var unityInstance = null;
@@ -420,6 +428,23 @@
                     }
                 }, 2000);
 
+                // Wait for scene to load and initialize LINE LIFF
+                setTimeout(() => {
+                    console.log("=== Attempting to initialize LINE LIFF after delay ===");
+                    try {
+                        // Test connection first
+                        instance.SendMessage("__[ST]_WebGLBridge", "TestConnection");
+                        console.log("Test connection successful");
+                        
+                        // Initialize LINE LIFF and send token
+                        console.log("Calling initializeLineLiff()...");
+                        initializeLineLiff();
+                        
+                    } catch (error) {
+                        console.error("Error initializing LINE LIFF:", error);
+                    }
+                }, 2000);
+
             }).catch((message) => {
                 console.error("Unity creation error:", message);
             });
@@ -469,6 +494,8 @@
 
     // Add LINE LIFF initialization function
     function initializeLineLiff() {
+        console.log("=== initializeLineLiff() called ===");
+        
         if (typeof liff === 'undefined') {
             console.error('LIFF SDK not loaded');
             return;
@@ -477,7 +504,7 @@
         console.log("Initializing LINE LIFF...");
         
         liff.init({ 
-            liffId: '2007488153-aBQgjwyL',
+            liffId: '2007488220-br6BV2x6',
             withLoginOnExternalBrowser: true
         }).then(() => {
             console.log("LIFF initialized successfully");
@@ -489,6 +516,8 @@
                 return;
             }
             
+            console.log("User is logged in, getting profile and token...");
+            
             // Get user profile and token
             liff.getProfile().then(profile => {
                 console.log("LINE User Profile:", profile);
@@ -497,6 +526,9 @@
                 if (unityInstance && unityInstance.SendMessage) {
                     const profileStr = JSON.stringify(profile);
                     unityInstance.SendMessage("__[ST]_WebGLBridge", "OnLineUserProfileReceived", profileStr);
+                    console.log("Profile sent to Unity");
+                } else {
+                    console.log("Unity instance not ready for profile");
                 }
             }).catch(error => {
                 console.error('Error getting LINE profile:', error);
@@ -508,6 +540,9 @@
                 // Send token to Unity
                 if (unityInstance && unityInstance.SendMessage) {
                     unityInstance.SendMessage("__[ST]_WebGLBridge", "OnLineLoginTokenReceived", token);
+                    console.log("Token sent to Unity");
+                } else {
+                    console.log("Unity instance not ready for token");
                 }
             }).catch(error => {
                 console.error('Error getting LINE ID token:', error);
