@@ -6,11 +6,12 @@
     <title>Unity Web Player | AutoRPGAdventure</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@telegram-apps/sdk@1.1.3/dist/index.iife.js"></script>
+    
+    <!-- LINE LIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    
     <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-app-compat.js"></script>
-    <!-- <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore-compat.js"></script> -->
     <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-analytics-compat.js"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <style>
         /* Reset all margins and paddings */
@@ -23,10 +24,10 @@
         /* Add version display style */
         #version-display {
             position: fixed;
-            right: 10px;
-            bottom: 10px;
+            right: 5px;
+            bottom: 5px;
             color: rgba(255, 255, 255, 0.6);
-            font-size: 12px;
+            font-size: 9px;
             font-family: Arial, sans-serif;
             z-index: 2147483647;
             pointer-events: none;
@@ -84,8 +85,8 @@
         /* Version canvas style */
         #version-canvas {
             position: fixed;
-            right: 10px;
-            bottom: 10px;
+            right: 8px;
+            bottom: -5.5px;
             z-index: 2147483647;
             pointer-events: none;
         }
@@ -108,7 +109,6 @@
 <canvas id="version-canvas"></canvas>
 
 <script>
-    window.Telegram.WebApp.ready();
     console.log("Script started");
     
     var canvas = document.querySelector("#unity-canvas");
@@ -126,9 +126,7 @@
         measurementId: "G-Y3KSRPFPBM"
     };
     
-    // Initialize Firebase app and services
     const firebaseApp = firebase.initializeApp(firebaseConfig);
-    // const db = firebaseApp.firestore();
     const analytics = firebase.analytics(firebaseApp);
 
     // Add other Firebase services as needed
@@ -256,7 +254,7 @@
                 if (unityInstance.Module && 
                     unityInstance.Module.SendMessage) {
                         
-                    unityInstance.SendMessage("WebGLBridge", "OnWindowResize", 
+                    unityInstance.SendMessage("__[ST]_WebGLBridge", "OnWindowResize", 
                         JSON.stringify({
                             width: canvas.width, 
                             height: canvas.height,
@@ -384,16 +382,37 @@
                     console.log("Attempting to send token after delay");
                     try {
                         // Test connection first
-                        instance.SendMessage("WebGLBridge", "TestConnection");
+                        instance.SendMessage("__[ST]_WebGLBridge", "TestConnection");
                         console.log("Test connection successful");
                         
                         // Get and send token
                         const token = getLoginToken();
                         if (token) {
-                            instance.SendMessage("WebGLBridge", "OnLoginTokenReceived", token);
+                            instance.SendMessage("__[ST]_WebGLBridge", "OnLoginTokenReceived", token);
                             console.log("Token sent to Unity:", token);
                         } else {
-                            instance.SendMessage("WebGLBridge", "OnLoginTokenReceived", "");
+                            instance.SendMessage("__[ST]_WebGLBridge", "OnLoginTokenReceived", "");
+                            console.log("No token found in URL, sending default");
+                        }
+                    } catch (error) {
+                        console.error("Error sending message to Unity:", error);
+                    }
+                }, 2000);
+
+                setTimeout(() => {
+                    console.log("Attempting to send token after delay");
+                    try {
+                        // Test connection first
+                        instance.SendMessage("__[ST]_WebGLBridge", "TestConnection");
+                        console.log("Test connection successful");
+                        
+                        // Get and send token
+                        const token = getLoginToken();
+                        if (token) {
+                            instance.SendMessage("__[ST]_WebGLBridge", "OnLoginTokenReceived", token);
+                            console.log("Token sent to Unity:", token);
+                        } else {
+                            instance.SendMessage("__[ST]_WebGLBridge", "OnLoginTokenReceived", "");
                             console.log("No token found in URL, sending default");
                         }
                     } catch (error) {
@@ -409,15 +428,94 @@
         document.body.appendChild(script);
     }
 
+    // Updated getLoginToken function for LINE only
     function getLoginToken() {
         console.log("Current URL:", window.location.href);
         const queryString = window.location.search.substring(1);
         console.log("Full query string:", queryString);
         
-        if (queryString) {
-            return queryString;
+        // Handle LINE platform
+        const urlParams = new URLSearchParams(queryString);
+        const startParam = urlParams.get('startParam');
+        console.log('LINE startParam:', startParam);
+
+        // Parse LINE start parameters
+        if (startParam) {
+            const paramsArray = startParam.split('__');
+            for (const param of paramsArray) {
+                if (param.startsWith('invite_')) {
+                    const inviteCode = param.split('_')[1];
+                    console.log('LINE Invite Code:', inviteCode);
+                    // Send invite code to Unity
+                    if (unityInstance && unityInstance.SendMessage) {
+                        unityInstance.SendMessage("__[ST]_WebGLBridge", "OnLineInviteCodeReceived", inviteCode);
+                    }
+                }
+                else if(param.startsWith('fslid_')) {
+                    const fslBindingCode = param.split('_')[1];
+                    console.log('LINE FSL Binding Code:', fslBindingCode);
+                    // Send FSL binding code to Unity
+                    if (unityInstance && unityInstance.SendMessage) {
+                        unityInstance.SendMessage("__[ST]_WebGLBridge", "OnLineFSLBindingCodeReceived", fslBindingCode);
+                    }
+                }
+            }
         }
-        return null;
+        
+        // For LINE, we'll return the full query string for now
+        // The actual token will be obtained through LIFF SDK
+        return queryString;
+    }
+
+    // Add LINE LIFF initialization function
+    function initializeLineLiff() {
+        if (typeof liff === 'undefined') {
+            console.error('LIFF SDK not loaded');
+            return;
+        }
+        
+        console.log("Initializing LINE LIFF...");
+        
+        liff.init({ 
+            liffId: '2007488153-aBQgjwyL',
+            withLoginOnExternalBrowser: true
+        }).then(() => {
+            console.log("LIFF initialized successfully");
+            
+            // Check if user is logged in
+            if (!liff.isLoggedIn()) {
+                console.log("User not logged in, redirecting to login");
+                liff.login();
+                return;
+            }
+            
+            // Get user profile and token
+            liff.getProfile().then(profile => {
+                console.log("LINE User Profile:", profile);
+                
+                // Send profile to Unity
+                if (unityInstance && unityInstance.SendMessage) {
+                    const profileStr = JSON.stringify(profile);
+                    unityInstance.SendMessage("__[ST]_WebGLBridge", "OnLineUserProfileReceived", profileStr);
+                }
+            }).catch(error => {
+                console.error('Error getting LINE profile:', error);
+            });
+            
+            liff.getIDToken().then(token => {
+                console.log("LINE ID Token:", token);
+                
+                // Send token to Unity
+                if (unityInstance && unityInstance.SendMessage) {
+                    unityInstance.SendMessage("__[ST]_WebGLBridge", "OnLineLoginTokenReceived", token);
+                }
+            }).catch(error => {
+                console.error('Error getting LINE ID token:', error);
+            });
+            
+        }).catch(error => {
+            console.error('LIFF initialization failed:', error);
+        });
     }
 
     // Improved Telegram viewport handler
@@ -480,6 +578,86 @@
         });
     }
 
+    // AGGRESSIVE BEFOREUNLOAD POPUP PREVENTION
+    // Override ALL possible ways Unity might add beforeunload handlers
+    let originalAddEventListener = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function(type, listener, options) {
+        if (type === 'beforeunload') {
+            console.log("BLOCKED: Attempt to add beforeunload listener");
+            return; // Completely ignore beforeunload listeners
+        }
+        return originalAddEventListener.call(this, type, listener, options);
+    };
+
+    // NOTE: Removed continuous setInterval as it conflicts with Object.defineProperty below
+    // The Object.defineProperty approach is more effective and doesn't cause console spam
+
+    // Override window.confirm to prevent Unity's built-in confirmation dialogs
+    const originalConfirm = window.confirm;
+    window.confirm = function(message) {
+        console.log("BLOCKED: Confirm dialog attempt:", message);
+        if (message.toLowerCase().includes("saved") || 
+            message.toLowerCase().includes("changes") ||
+            message.toLowerCase().includes("unsaved")) {
+            console.log("BLOCKED: Detected data loss warning dialog");
+            return true; // Auto-confirm without showing dialog
+        }
+        return originalConfirm.call(this, message);
+    };
+
+    console.log("AGGRESSIVE popup prevention active - ALL beforeunload dialogs blocked");
+
+    // FINAL OVERRIDE: Prevent ALL types of exit dialogs
+    // Override window.alert, window.confirm, and any modal dialogs
+    window.alert = function(message) {
+        console.log("BLOCKED: Alert dialog:", message);
+        // Don't show alert - just log it
+    };
+
+    // Prevent form change detection (browsers sometimes auto-add beforeunload for forms)
+    document.addEventListener('DOMContentLoaded', function() {
+        // Remove any form change listeners
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener = function() {}; // Disable form event listeners
+        });
+        
+        // Continuously clear any potential form dirty flags
+        setInterval(function() {
+            const inputs = document.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+                input.removeAttribute('data-dirty');
+                input.removeAttribute('data-changed');
+            });
+        }, 1000);
+    });
+
+    // Override document.execCommand to prevent clipboard-related warnings
+    const originalExecCommand = document.execCommand;
+    document.execCommand = function(command, showDefaultUI, value) {
+        if (command === 'copy' || command === 'cut' || command === 'paste') {
+            console.log("BLOCKED: execCommand that might trigger warnings:", command);
+            return true; // Pretend it succeeded
+        }
+        return originalExecCommand.call(this, command, showDefaultUI, value);
+    };
+
+    // Final nuclear option: Override the entire beforeunload event completely
+    let onbeforeunloadBlocked = false; // Flag to prevent console spam
+    Object.defineProperty(window, 'onbeforeunload', {
+        set: function(value) {
+            if (!onbeforeunloadBlocked) {
+                console.log("BLOCKED: onbeforeunload handler prevented (this message will only show once)");
+                onbeforeunloadBlocked = true;
+            }
+            // Do nothing - completely ignore
+        },
+        get: function() {
+            return null; // Always return null
+        },
+        configurable: false // Prevent override
+    });
+
     // Thêm các hàm JavaScript mà Unity có thể gọi
     function exampleFunction(parameter) {
         console.log("Function called from Unity with parameter: " + parameter);
@@ -530,6 +708,43 @@
         }
         // Removed the direct resizeCanvas() call for non-iOS here
         // as delayedResize() handles it.
+    }
+
+    // Add LINE-specific functions that Unity can call
+    function initializeLineWhenUnityReady() {
+        if (unityInstance) {
+            initializeLineLiff();
+        } else {
+            setTimeout(initializeLineWhenUnityReady, 1000);
+        }
+    }
+    
+    function triggerLineLogin() {
+        if (typeof liff !== 'undefined') {
+            liff.login();
+        }
+    }
+    
+    function triggerLineLogout() {
+        if (typeof liff !== 'undefined') {
+            liff.logout();
+        }
+    }
+    
+    function getLineUserProfile() {
+        if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
+            return liff.getProfile().then(profile => {
+                return JSON.stringify(profile);
+            });
+        }
+        return Promise.resolve("");
+    }
+    
+    function getLineIDToken() {
+        if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
+            return liff.getIDToken();
+        }
+        return Promise.resolve("");
     }
 </script>
 </body>
